@@ -81,11 +81,18 @@ function hexToDec(hexString) {   // Converter negativo/positivo hex para decimal
     hexString = (hexString.charAt(2) < 8 ? hexString = hexString - 0x00000000 : hexString = hexString - 0xFFFFFFFF - 1);
     return parseInt(hexString, 10);
 }
-
+/*
+ * Get Key name of object with value
+ * @param {*} obj 
+ * @param {*} value 
+ * @returns 
+ */
+const getKeyByValue = (obj, value) => Object.keys(obj).find(key => obj[key] === value);
 
 module.exports = {
     isValid,
     timeNow,
     diffTime,
-    hexToDec
+    hexToDec,
+    getKeyByValue
 }

@@ -78,6 +78,18 @@ const lanPortDefault = {
         tpId: 33024
     }
 }
+var veipDefault = {
+    tls: 0,
+    cvlan: 100,
+    cvlan_cos: 65535,
+    tvlan: 65535,
+    tvlan_cos: 65535,
+    svlan: 65535,
+    svlan_cos: 65535,
+    us_band_width: 0,
+    ds_band_width: 0,
+    profile_name: null,
+};
 
 function addAllOnus(options, wanProfiles, lanPortProfiles) {
     var queue = new Queue(1, 10000)
@@ -182,7 +194,7 @@ function authorizeOnu(options, slot, pon, onuTypeCode, macAddress) {
                     for (var i = 0; i < 12; i++)
                         OID_Value[158 + i] = macAddress.strToHex().split(' ')[i]
                     OID_Value = OID_Value.join(' ')
-
+                    
                     snmp_fh.sendSnmp(OID.setAuth, OID_Value, options, true).then(ret => {
                         snmp_fh.sendSnmp(OID.confirmSetAuth, OID_Value, options, true).then(retConfirm => {
                             return resolve({ slot, pon, onuType: table.ONUType[onuTypeCode], macAddress })
@@ -2739,6 +2751,156 @@ function setWan(options, slot, pon, onuId, wanProfiles) {
     })
 }
 
+/*
+ * 
+ * @param {*} options 
+ * @param {*} param1 
+ * @returns VEIP attrs of onu 
+*/
+function getOnuVeip(options, { onuIndex, veipIndex = 1, addIndex = 1, ignoreValid = false }) 
+{
+    return new Promise((resolve, reject) => 
+    {
+        try 
+        {
+            let _onu = parseOnuIndex(onuIndex)
+            gFunc.isValid(options, _onu.slot, _onu.pon, _onu.onuId, ignoreValid).then(isValid => 
+            {
+                if (isValid && onuIndex) 
+                {
+                    let veip = OID.gponVeipService;
+                    let oids = Object.values(veip);
+                    let id = '.' + (onuIndex + addIndex) + '.' + veipIndex ; 
+                    let self = Object.assign({}, {});
+                    let no_found = 0;
+                    oids = oids.map(oid => oid + id);
+                    snmp_fh.get(options, oids)
+                    .then( data => 
+                    {
+                        data.map((obj) =>
+                        {
+                            let key = gFunc.getKeyByValue(veip,(new String(obj.oid).replace(id, '')));
+                            switch(obj.type)
+                            {
+                                case 2:
+                                    self[key] = parseInt(obj.value);
+                                    break;
+                                case 4:
+                                    self[key] = new String(obj.value).toString('utf-8');
+                                    break;
+                                default:
+                                    self[key] = null;
+                                    no_found++;
+                                    break;
+                            }
+                        });
+                        if(oids.length === no_found)
+                            return reject({
+                                status: 404,
+                                message: `VEIP not exists onuIndex: ${ onuIndex }`
+                            });
+
+                        return resolve(self);
+                    }, error => 
+                    {
+                        return reject({
+                            status: 500,
+                            message: 'Unable to connect to OLT'
+                        });
+                    })
+                }
+                else 
+                {
+                    return reject({
+                        status: 400,
+                        message: `onuIndex: ${ onuIndex } unreachable`
+                    });
+                }
+            })
+        } catch (error) {
+            return reject(error)
+        }
+    })
+}
+
+function setOnuVeip(options, { 
+    onuIndex, 
+    veipIndex = 1, 
+    addIndex = 1, 
+    ignoreValid = false 
+}, 
+config = {})
+{
+    return new Promise((resolve, reject) => 
+    {
+        try 
+        {
+            let _onu = parseOnuIndex(onuIndex)
+            gFunc.isValid(options, _onu.slot, _onu.pon, _onu.onuId, ignoreValid).then(isValid => 
+            {
+                if (isValid && onuIndex) 
+                {
+                    config = Object.assign(veipDefault, config);       
+                    let veip = OID.gponVeipService;
+                    let id = '.' + (onuIndex + addIndex) + '.' + veipIndex ; 
+                    let self = Object.assign({}, {});
+                    let no_found = 0;
+                    let oids = [];
+                    Object.keys(veip).map((key) =>
+                    {
+                        let obj     = {};
+                        obj.oid     = veip[key] + id;
+                        obj.type    = (key === 'profile_name') ? 'octet-string' : 'integer32';
+                        obj.value   = config[key];
+                        oids.push(obj);
+                    });
+                    snmp_fh.set(options, oids)
+                    .then( data => 
+                    {
+                        data.map((obj) =>
+                        {
+                            let key = gFunc.getKeyByValue(veip,(new String(obj.oid).replace(id, '')));
+                            switch(obj.type)
+                            {
+                                case 2:
+                                    self[key] = parseInt(obj.value);
+                                    break;
+                                case 4:
+                                    self[key] = new String(obj.value).toString('utf-8');
+                                    break;
+                                default:
+                                    self[key] = null;
+                                    no_found++;
+                                    break;
+                            }
+                        });
+                        if(oids.length === no_found)
+                            return reject({
+                                status: 404,
+                                message: `VEIP not exists onuIndex: ${ onuIndex }`
+                            });
+                        return resolve(self)
+                    }, error => 
+                    {
+                        return reject({
+                            status: 500,
+                            message: 'Unable to connect to OLT'
+                        });
+                    })
+                }
+                else 
+                {
+                    return reject({
+                        status: 400,
+                        message: `onuIndex: ${ onuIndex } unreachable`
+                    });
+                }
+            })
+        } catch (error) {
+            return reject(error)
+        }
+    })
+}
 
 module.exports = {
     addAllOnus,
@@ -2785,4 +2947,6 @@ module.exports = {
     setOnuBandwidth,
     setOnuWebAdmin,
     setWan,
+    getOnuVeip,
+    setOnuVeip,
 }

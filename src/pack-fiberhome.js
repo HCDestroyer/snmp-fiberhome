@@ -254,6 +254,45 @@ function get(opt, oids) {
     })
 }
 
+function set(opt, _oids) 
+{
+    return new Promise((resolve, reject) => {
+        let options = { ...defaultOptions, ...opt }
+        let session = snmp.createSession(options.ip || options.host, options.community, options)
+        let oids = [];
+        _oids.map((oid) => {
+            let _oid = Object.assign({}, oid);
+            switch (_oid.type) {
+                case 'octet-string':
+                    _oid.type = snmp.ObjectType.OctetString
+                    break;
+                case 'integer32':
+                    _oid.type = snmp.ObjectType.Integer32
+                    break;
+            }
+            oids.push(_oid);
+        });
+        session.set(oids, function (error, varbinds) {
+            if (error) {
+                return reject(error)
+            } else {
+                for (var i = 0; i < varbinds.length; i++) {
+                    // for version 1 we can assume all OIDs were successful
+                    console.log (varbinds[i].oid + "|" + varbinds[i].value);
+                
+                    // for version 2c we must check each OID for an error condition
+                    if (snmp.isVarbindError (varbinds[i]))
+                        console.error (snmp.varbindError (varbinds[i]));
+                    else
+                        console.log (varbinds[i].oid + "|" + varbinds[i].value);
+                }
+                return resolve(varbinds)
+            }
+            // If done, close the session
+            //session.close()
+        })
+    })
+}
 
 module.exports = {
     allOpticalPower,
@@ -287,5 +326,6 @@ module.exports = {
     setWanHeader,
     signal,
     subtree,
-    version
+    version,
+    set
 }

@@ -70,6 +70,8 @@ module.exports = {
     setOnuBandwidth: onu.setOnuBandwidth,
     setOnuWebAdmin: onu.setOnuWebAdmin,
     setWan: onu.setWan,
+    getOnuVeip: onu.getOnuVeip,
+    setOnuVeip: onu.setOnuVeip,
 
     // Global Functions
     timeNow: gFunc.timeNow,
